@@ -45,14 +45,15 @@ def poll_messages(cursor: PsycopgCursor):
             key=row[2],
             value=row[3],
             headers=row[4] if row[4] is not None else [],
-            partition=row[5] if row[5] is not None else 0,
+            partition=row[5],
         )
         for row in cursor.fetchall()
     ]
 
 
 def publish_messages(
-    producer: KafkaProducer, messages: list[OutboxMessage]
+    producer: KafkaProducer,
+    messages: list[OutboxMessage],
 ) -> list[OutboxMessage]:
     processed = []
     for message in messages:
