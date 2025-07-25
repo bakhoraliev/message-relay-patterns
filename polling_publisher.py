@@ -1,10 +1,20 @@
 import os
 import time
+from typing import TypedDict
 
 import psycopg2
 from kafka import KafkaProducer
 from psycopg2.extensions import connection as PsycopgConnection
 from psycopg2.extensions import cursor as PsycopgCursor
+
+
+class OutboxMessage(TypedDict):
+    id: str
+    topic: str
+    key: str | None
+    value: str
+    headers: list[tuple[str, bytes]] | None
+    partition: int | None
 
 
 def create_connection(dsn: str) -> PsycopgConnection:
@@ -28,19 +38,40 @@ def poll_messages(cursor: PsycopgCursor):
         ORDER BY id DESC
         """,
     )
-    return cursor.fetchall()
+    return [
+        OutboxMessage(
+            id=row[0],
+            topic=row[1],
+            key=row[2],
+            value=row[3],
+            headers=row[4] if row[4] is not None else [],
+            partition=row[5] if row[5] is not None else 0,
+        )
+        for row in cursor.fetchall()
+    ]
 
 
-def publish_messages(producer: KafkaProducer, messages):
+def publish_messages(
+    producer: KafkaProducer, messages: list[OutboxMessage]
+) -> list[OutboxMessage]:
+    processed = []
     for message in messages:
-        _, topic, key, value, headers, partition = message
-        producer.send(topic, key=key, value=value, headers=headers, partition=partition)
+        producer.send(
+            topic=message["topic"],
+            key=message["key"],
+            value=message["value"],
+            headers=message["headers"],
+            partition=message["partition"],
+        )
         producer.flush()  # Ensure the message is sent immediately
+        processed.append(message)
+    return processed
 
 
-def mark_as_processed(cursor: PsycopgCursor, message_ids: list[str]):
-    if not message_ids:
+def mark_as_processed(cursor: PsycopgCursor, messages: list[OutboxMessage]):
+    if not messages:
         return
+    message_ids = [msg["id"] for msg in messages]
     cursor.execute(
         """
         UPDATE general.outbox
@@ -68,9 +99,8 @@ def main():
         while True:
             with connection.cursor() as cursor:
                 messages = poll_messages(cursor)
-                publish_messages(producer, messages)
-                message_ids = [msg[0] for msg in messages]
-                mark_as_processed(cursor, message_ids)
+                processed_messages = publish_messages(producer, messages)
+                mark_as_processed(cursor, processed_messages)
             time.sleep(5)  # Sleep for 5 seconds before polling again
     finally:
         connection.close()
