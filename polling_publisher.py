@@ -1,67 +1,80 @@
 import os
 import time
 
-import kafka
-import psycopg
+import psycopg2
+from kafka import KafkaProducer
+from psycopg2.extensions import connection as PsycopgConnection
+from psycopg2.extensions import cursor as PsycopgCursor
 
 
-def create_connection(dsn: str) -> psycopg.Connection:
-    """Create a connection to the PostgreSQL database using psycopg."""
-    conn = psycopg.connect(dsn)
-    return conn
+def create_connection(dsn: str) -> PsycopgConnection:
+    return psycopg2.connect(dsn)
 
 
-def create_producer(bootstrap_servers: str) -> kafka.KafkaProducer:
-    """Create a Kafka producer."""
-    producer = kafka.KafkaProducer(bootstrap_servers=bootstrap_servers)
-    return producer
-
-
-def poll_messages(connection: psycopg.Connection):
-    """Poll messages from outbox table."""
-    cursor = connection.cursor()
-    cursor.execute(
-        "SELECT * FROM outbox WHERE processed = FALSE ORDER BY created_at DESC"
+def create_kafka_producer(bootstrap_servers: str) -> KafkaProducer:
+    return KafkaProducer(
+        bootstrap_servers=bootstrap_servers,
+        retries=5,  # Retry up to 5 times
+        retry_backoff_ms=1000,  # Retry after 1 second
     )
-    messages = cursor.fetchall()
-    return messages
 
 
-def push_messages(producer: kafka.KafkaProducer, messages):
-    """Push messages to Kafka topic."""
+def poll_messages(cursor: PsycopgCursor):
+    cursor.execute(
+        """
+        SELECT id, topic, key, value, headers, partition
+        FROM general.outbox
+        WHERE processed = FALSE
+        ORDER BY id DESC
+        """,
+    )
+    return cursor.fetchall()
+
+
+def publish_messages(producer: KafkaProducer, messages):
     for message in messages:
-        producer.send("outbox_topic", value=message)
+        _, topic, key, value, headers, partition = message
+        producer.send(topic, key=key, value=value, headers=headers, partition=partition)
+        producer.flush()  # Ensure the message is sent immediately
 
 
-def mark_processed_messages(connection: psycopg.Connection, messages):
-    """Mark messages as processed in the outbox table."""
-    cursor = connection.cursor()
-    if messages:
-        message_ids = tuple(message[0] for message in messages)
-        cursor.execute(
-            "UPDATE outbox SET processed = TRUE WHERE id IN ANY(%s)", (message_ids,)
-        )
+def mark_as_processed(cursor: PsycopgCursor, message_ids: list[str]):
+    if not message_ids:
+        return
+    cursor.execute(
+        """
+        UPDATE general.outbox
+        SET processed = TRUE
+        WHERE id = ANY(%s)
+        """,
+        (message_ids,),
+    )
 
 
 def main():
-    """Main function to run the message relay."""
     dsn = os.getenv(
-        "DATABASE_URL",
-        "dbname=your_db user=your_user password=your_password host=localhost port=5432",
+        "DATABASE_DSN",
+        "postgres://postgres:password@localhost:5432/general",
     )
-    bootstrap_servers = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
-    poll_timeout = int(os.getenv("POLL_TIMEOUT", 5))
+    kafka_bootstrap_servers = os.getenv(
+        "KAFKA_BOOTSTRAP_SERVERS",
+        "localhost:9092",
+    )
 
-    conn = create_connection(dsn)
-    producer_instance = create_producer(bootstrap_servers)
+    connection = create_connection(dsn)
+    producer = create_kafka_producer(kafka_bootstrap_servers)
 
-    while True:
-        messages = poll_messages(conn)
-        if messages:
-            push_messages(producer_instance, messages)
-            mark_processed_messages(conn, messages)
-
-        time.sleep(poll_timeout)
+    try:
+        while True:
+            with connection.cursor() as cursor:
+                messages = poll_messages(cursor)
+                publish_messages(producer, messages)
+                message_ids = [msg[0] for msg in messages]
+                mark_as_processed(cursor, message_ids)
+            time.sleep(5)  # Sleep for 5 seconds before polling again
+    finally:
+        connection.close()
+        producer.close()
 
 
 if __name__ == "__main__":
