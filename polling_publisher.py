@@ -51,22 +51,15 @@ def poll_messages(cursor: PsycopgCursor):
     ]
 
 
-def publish_messages(
-    producer: KafkaProducer,
-    messages: list[OutboxMessage],
-) -> list[OutboxMessage]:
-    processed = []
-    for message in messages:
-        producer.send(
-            topic=message["topic"],
-            key=message["key"],
-            value=message["value"],
-            headers=message["headers"],
-            partition=message["partition"],
-        )
-        producer.flush()  # Ensure the message is sent immediately
-        processed.append(message)
-    return processed
+def publish_message(producer: KafkaProducer, message: OutboxMessage):
+    producer.send(
+        topic=message["topic"],
+        key=message["key"],
+        value=message["value"],
+        headers=message["headers"],
+        partition=message["partition"],
+    )
+    producer.flush()  # Ensure the message is sent immediately
 
 
 def mark_as_processed(cursor: PsycopgCursor, messages: list[OutboxMessage]):
@@ -81,6 +74,18 @@ def mark_as_processed(cursor: PsycopgCursor, messages: list[OutboxMessage]):
         """,
         (message_ids,),
     )
+
+
+def polling_publisher(cursor: PsycopgCursor, producer: KafkaProducer):
+    messages = poll_messages(cursor)
+    processed_messages: list[OutboxMessage] = []
+    for message in messages:
+        try:
+            publish_message(producer, message)
+            processed_messages.append(message)
+        except:
+            continue
+    mark_as_processed(cursor, processed_messages)
 
 
 def main():
@@ -99,9 +104,7 @@ def main():
     try:
         while True:
             with connection.cursor() as cursor:
-                messages = poll_messages(cursor)
-                processed_messages = publish_messages(producer, messages)
-                mark_as_processed(cursor, processed_messages)
+                polling_publisher(cursor, producer)
             time.sleep(5)  # Sleep for 5 seconds before polling again
     finally:
         connection.close()
