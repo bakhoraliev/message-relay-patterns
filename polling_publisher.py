@@ -2,40 +2,28 @@ import os
 import time
 from typing import TypedDict
 
+import kafka
 import psycopg2
-from kafka import KafkaProducer
-from psycopg2.extensions import connection as PsycopgConnection
 from psycopg2.extensions import cursor as PsycopgCursor
 
 
 class OutboxMessage(TypedDict):
-    id: str
+    id: int
     topic: str
     key: str | None
-    value: str
+    value: bytes | None
     headers: list[tuple[str, bytes]] | None
     partition: int | None
 
 
-def create_connection(dsn: str) -> PsycopgConnection:
-    return psycopg2.connect(dsn)
-
-
-def create_kafka_producer(bootstrap_servers: str) -> KafkaProducer:
-    return KafkaProducer(
-        bootstrap_servers=bootstrap_servers,
-        retries=5,  # Retry up to 5 times
-        retry_backoff_ms=1000,  # Retry after 1 second
-    )
-
-
-def poll_messages(cursor: PsycopgCursor):
+def poll_messages(cursor: PsycopgCursor) -> list[OutboxMessage]:
+    # `ORDER BY id ASC` ensures that messages are processed in the order they were added.
     cursor.execute(
         """
         SELECT id, topic, key, value, headers, partition
         FROM general.outbox
         WHERE processed = FALSE
-        ORDER BY id DESC
+        ORDER BY id ASC
         """,
     )
     return [
@@ -51,7 +39,7 @@ def poll_messages(cursor: PsycopgCursor):
     ]
 
 
-def publish_message(producer: KafkaProducer, message: OutboxMessage):
+def publish_message(producer: kafka.KafkaProducer, message: OutboxMessage):
     producer.send(
         topic=message["topic"],
         key=message["key"],
@@ -63,20 +51,28 @@ def publish_message(producer: KafkaProducer, message: OutboxMessage):
 
 
 def mark_as_processed(cursor: PsycopgCursor, messages: list[OutboxMessage]):
-    if not messages:
-        return
-    message_ids = [msg["id"] for msg in messages]
-    cursor.execute(
-        """
-        UPDATE general.outbox
-        SET processed = TRUE
-        WHERE id = ANY(%s)
-        """,
-        (message_ids,),
-    )
+    if messages:
+        ids = [msg["id"] for msg in messages]
+        cursor.execute(
+            """
+            UPDATE general.outbox
+            SET processed = TRUE
+            WHERE id = ANY(%s)
+            """,
+            (ids,),
+        )
 
 
-def polling_publisher(cursor: PsycopgCursor, producer: KafkaProducer):
+def polling_publisher(cursor: PsycopgCursor, producer: kafka.KafkaProducer):
+    """
+    Implements the Polling Publisher pattern.
+
+    Polls the outbox table for unprocessed messages,
+    publishes them to Kafka one by one, and marks them as processed.
+
+    If a message fails to publish, it is skipped,
+    and the next message is processed.
+    """
     messages = poll_messages(cursor)
     processed_messages: list[OutboxMessage] = []
     for message in messages:
@@ -89,25 +85,26 @@ def polling_publisher(cursor: PsycopgCursor, producer: KafkaProducer):
 
 
 def main():
-    dsn = os.getenv(
-        "DATABASE_DSN",
-        "postgres://postgres:password@localhost:5432/general",
+    db = psycopg2.connect(
+        dsn=os.getenv(
+            "DATABASE_DSN",
+            "postgres://postgres:password@localhost:5432/general",
+        ),
     )
-    kafka_bootstrap_servers = os.getenv(
-        "KAFKA_BOOTSTRAP_SERVERS",
-        "localhost:9092",
+    producer = kafka.KafkaProducer(
+        bootstrap_servers=os.getenv(
+            "KAFKA_BOOTSTRAP_SERVERS",
+            "localhost:9092",
+        ),
     )
-
-    connection = create_connection(dsn)
-    producer = create_kafka_producer(kafka_bootstrap_servers)
 
     try:
         while True:
-            with connection.cursor() as cursor:
+            with db.cursor() as cursor:
                 polling_publisher(cursor, producer)
             time.sleep(5)  # Sleep for 5 seconds before polling again
     finally:
-        connection.close()
+        db.close()
         producer.close()
 
 
