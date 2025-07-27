@@ -18,8 +18,8 @@ class OutboxMessage(TypedDict):
     id: int
     topic: str
     key: str | None
-    value: bytes | None
-    headers: list[tuple[str, bytes]] | None
+    value: str | None
+    headers: list[tuple[str, str]] | None
     partition: int | None
 
 
@@ -121,6 +121,8 @@ def main():
             "KAFKA_BOOTSTRAP_SERVERS",
             "localhost:9092",
         ),
+        value_serializer=lambda v: v.encode("utf-8") if isinstance(v, str) else v,
+        key_serializer=lambda v: v.encode("utf-8") if isinstance(v, str) else v,
     )
 
     try:
@@ -128,6 +130,7 @@ def main():
             logger.debug("Beginning polling cycle.")
             with db.cursor() as cursor:
                 polling_publisher(cursor, producer)
+            db.commit()
             logger.debug("Polling cycle complete. Sleeping for 5 seconds.")
             time.sleep(5)  # Sleep for 5 seconds before polling again
     except KeyboardInterrupt:
