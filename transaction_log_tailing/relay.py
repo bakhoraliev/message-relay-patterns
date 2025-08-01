@@ -59,7 +59,7 @@ def parse_replication_message(
         replication_message.payload
     )  # Assume wal2json plugin is used
     outbox_messages = []
-    for change in parsed_payload.get("changes", []):
+    for change in parsed_payload.get("change", []):
         if (
             change["kind"] == "insert"
             and change["schema"] == "general"
