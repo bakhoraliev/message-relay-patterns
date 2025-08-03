@@ -1,22 +1,25 @@
-version: "3.8"
-
 services:
   # PostgreSQL service for storing outbox messages
   postgres:
     image: postgres:latest
     container_name: postgres
     environment:
-      POSTGRES_USER: user
+      POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
     ports:
       - "5432:5432"
     volumes:
       - database:/var/lib/postgresql/data
+      - ./migrate.sh:/migrate.sh
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 30s
       timeout: 60s
       retries: 5
+    # Run migrations after the database is ready
+    post_start:
+      - command: sh -c 'until pg_isready -U postgres; do sleep 1; done; bash /migrate.sh'
+        user: postgres
 
   # Single-node Apache Kafka service for message brokering (KRaft mode, no Zookeeper)
   # https://github.com/apache/kafka/blob/trunk/docker/examples/docker-compose-files/single-node/plaintext/docker-compose.yml
@@ -60,7 +63,7 @@ services:
       kafka:
         condition: service_healthy
     environment:
-      DATABASE_DSN: postgres://user:password@postgres:5432
+      DATABASE_DSN: postgres://postgres:password@postgres:5432
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     restart: unless-stopped
 
