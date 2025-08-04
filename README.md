@@ -1,4 +1,4 @@
-<img src="https://user-gen-media-assets.s3.amazonaws.com/gpt4o_images/d21e7a70-fa7d-4b1c-a05e-3f46efd3395c.png" width="128"/>
+<img src="./diagrams/images/logo.svg" alt="Transactional Outbox simple diagram" width="250">
 
 # Message Relay Patterns
 
@@ -12,8 +12,11 @@ After reading an article about [Transactional Outbox](https://microservices.io/p
 
 ## Polling Publisher
 
+<img src="./diagrams/images/polling_publisher.svg" alt="Polling Publisher" width="800">
 
 ## Transaction Log Tailing
+
+<img src="./diagrams/images/transaction_log_tailing.svg" alt="Transaction Log Tailing" width="800">
 
 ## References
 
