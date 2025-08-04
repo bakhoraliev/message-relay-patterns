@@ -13,7 +13,7 @@ services:
       - ./migrate.sh:/migrate.sh
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 30s
+      interval: 10s
       timeout: 60s
       retries: 5
     # Run migrations after the database is ready
@@ -47,8 +47,8 @@ services:
     ports:
       - "9092:9092"
     healthcheck:
-      test: ["CMD", "kafka-topics.sh", "--bootstrap-server", "localhost:9092", "--list"]
-      interval: 30s
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092"]
+      interval: 10s
       timeout: 60s
       retries: 5
 
@@ -64,7 +64,7 @@ services:
         condition: service_healthy
     environment:
       DATABASE_DSN: postgres://postgres:password@postgres:5432
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_BOOTSTRAP_SERVERS: broker:19092
     restart: unless-stopped
 
 volumes:

@@ -1,12 +1,10 @@
-version: "3.8"
-
 services:
   # PostgreSQL service for storing outbox messages
   postgres:
     image: postgres:latest
     container_name: postgres
     environment:
-      POSTGRES_USER: user
+      POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
     # Enable logical replication
     command:
@@ -21,11 +19,16 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./migrate.sh:/migrate.sh
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 30s
+      interval: 10s
       timeout: 60s
       retries: 5
+    post_start:
+      # Run database migrations after the database is ready
+      - command: sh -c 'until pg_isready -U postgres; do sleep 1; done; bash /migrate.sh'
+        user: postgres
 
   # Single-node Apache Kafka service for message brokering (KRaft mode, no Zookeeper)
   # https://github.com/apache/kafka/blob/trunk/docker/examples/docker-compose-files/single-node/plaintext/docker-compose.yml
@@ -53,8 +56,8 @@ services:
     ports:
       - "9092:9092"
     healthcheck:
-      test: ["CMD", "kafka-topics.sh", "--bootstrap-server", "localhost:9092", "--list"]
-      interval: 30s
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092"]
+      interval: 10s
       timeout: 60s
       retries: 5
 
@@ -69,8 +72,8 @@ services:
       kafka:
         condition: service_healthy
     environment:
-      DATABASE_DSN: postgres://user:password@postgres:5432
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      DATABASE_DSN: postgres://postgres:password@postgres:5432
+      KAFKA_BOOTSTRAP_SERVERS: broker:19092
       REPLICATION_SLOT_NAME: "outbox"
     restart: unless-stopped
 
