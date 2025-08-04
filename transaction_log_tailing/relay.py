@@ -1,27 +1,18 @@
 import json
 import logging
 import os
-from typing import (
-    Callable,
-    TypedDict,
-)
+from typing import TypedDict
 
 import kafka
 import psycopg2
-from psycopg2.extras import (
-    LogicalReplicationConnection,
-    ReplicationCursor,
-    ReplicationMessage,
-)
+from psycopg2.extras import (LogicalReplicationConnection, ReplicationCursor,
+                             ReplicationMessage)
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
     level=logging.DEBUG,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
-
-
-TransactionLogConsumer = Callable[[ReplicationMessage], None]
 
 
 class OutboxMessage(TypedDict):
