@@ -6,7 +6,7 @@ This repository contains simple educational examples of the [Polling Publisher](
 
 ## Motivation
 
-After reading an article about [Transactional Outbox](https://microservices.io/patterns/data/transactional-outbox.html) pattern on microservices.io, I discorvered that there are no good educational examples of the [Transaction Log Tailing](https://microservices.io/patterns/data/transaction-log-tailing.html) and [Polling Publisher](https://microservices.io/patterns/data/polling-publisher.html) patterns on either the website or GitHub.
+After reading an article about Transactional Outbox pattern on microservices.io, I discorvered that there are no good educational examples of the Transaction Log Tailing and Polling Publisher patterns on either the website or GitHub.
 So this repository tries to fill that gap by providing simple examples of these patterns in Python using PostgreSQL as the database and Kafka as the message broker.
 
 ## Requirements
@@ -48,7 +48,7 @@ cd message-relay-patterns
 - When scaling out, care must be taken to avoid multiple Message Relay instances processing the same messages (using `SELECT _ FOR UPDATE` or similar mechanisms).
 - Message delivery ordering can be disrupted when processing in parallel.
 
-### How to run the example
+### Running the example
 
 ```bash
 docker compose -f 'polling_publisher/docker-compose-polling-publisher.yml' up -d --build
@@ -77,7 +77,7 @@ docker compose -f 'polling_publisher/docker-compose-polling-publisher.yml' up -d
 - Scaling is complicated because multiple readers might see the same log entries without a simple way to skip already processed ones.
 - Depends on database system capabilities.
 
-### How to run the example
+### Running the example
 
 ```bash
 docker compose -f 'transaction_log_tailing/docker-compose-transaction-log-tailing.yml' up -d --build  
@@ -85,40 +85,43 @@ docker compose -f 'transaction_log_tailing/docker-compose-transaction-log-tailin
 
 ## Testing the examples
 
-Enter Kafka container:
+For testing the examples, we need two terminals: one for the watching messages in Kafka and another for inserting test messages into the PostgreSQL Outbox Table. After running the examples, you can follow these steps:
+
+### Watching messages in Kafka
+
+1. Open a terminal and enter Kafka container:
 
 ```bash
 docker exec -it message-relay-kafka bash
 ```
-
-Then use the following command to consume messages from the `test_topic` topic:
+2. Use the following command to consume messages from the `test_topic` topic:
 
 ```bash
 /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic test_topic --from-beginning
 ```
 
-Enter PostgreSQL container:
+### Inserting test messages into PostgreSQL Outbox Table
+
+1. Open another terminal and enter PostgreSQL container:
 
 ```bash
 docker exec -it message-relay-postgres bash
 ```
 
-Then connect to the database:
+2. Connect to the PostgreSQL database:
 
 ```bash
-psql -U postgres -d message_relay
+psql -U postgres
 ```
 
-Create a test message in the Outbox table:
+3. Create a test messages in the Outbox table:
 
 ```sql
 INSERT INTO general.outbox (topic, key, value)
 VALUES ('test_topic', 'key_1', 'value_1');
 ```
 
-This will trigger the Polling Publisher or Transaction Log Tailing to publish the message to Kafka, and you should see it in the Kafka consumer output.
-
-If you want test examples on more than one message, you can use the following SQL command to insert multiple messages:
+3. or to insert multiple messages, you can use the following SQL command:
 
 ```sql
 BEGIN;
@@ -130,7 +133,6 @@ SELECT
 FROM generate_series(0, 1000) AS i;
 COMMIT;
 ```
-This will insert 1001 messages into the Outbox table, which will be processed by the Polling Publisher or Transaction Log Tailing.
 
 ## Links
 - Original articles on microservices.io:
@@ -143,7 +145,8 @@ This will insert 1001 messages into the Outbox table, which will be processed by
 ## Contributing
 
 Contributions are welcome! If you have suggestions for improvements or new features, please open an issue or submit a pull request.
-Remember that this repository is primarily for educational purposes, and aim to keep the examples simple and easy to understand.
+
+! Remember that this repository is primarily for educational purposes, and aim to keep the examples simple and easy to understand.
 
 ## License
 
