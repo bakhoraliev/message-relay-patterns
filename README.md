@@ -83,6 +83,55 @@ docker compose -f 'polling_publisher/docker-compose-polling-publisher.yml' up -d
 docker compose -f 'transaction_log_tailing/docker-compose-transaction-log-tailing.yml' up -d --build  
 ```
 
+## Testing the examples
+
+Enter Kafka container:
+
+```bash
+docker exec -it message-relay-kafka bash
+```
+
+Then use the following command to consume messages from the `test_topic` topic:
+
+```bash
+/opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic test_topic --from-beginning
+```
+
+Enter PostgreSQL container:
+
+```bash
+docker exec -it message-relay-postgres bash
+```
+
+Then connect to the database:
+
+```bash
+psql -U postgres -d message_relay
+```
+
+Create a test message in the Outbox table:
+
+```sql
+INSERT INTO general.outbox (topic, key, value)
+VALUES ('test_topic', 'key_1', 'value_1');
+```
+
+This will trigger the Polling Publisher or Transaction Log Tailing to publish the message to Kafka, and you should see it in the Kafka consumer output.
+
+If you want test examples on more than one message, you can use the following SQL command to insert multiple messages:
+
+```sql
+BEGIN;
+INSERT INTO general.outbox (topic, key, value)
+SELECT
+    'test_topic',
+    'key_' || i,
+    'value_' || i
+FROM generate_series(0, 1000) AS i;
+COMMIT;
+```
+This will insert 1001 messages into the Outbox table, which will be processed by the Polling Publisher or Transaction Log Tailing.
+
 ## Links
 - Original articles on microservices.io:
   - https://microservices.io/patterns/data/transactional-outbox.html
