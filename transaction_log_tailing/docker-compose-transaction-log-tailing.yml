@@ -4,7 +4,7 @@ services:
     build:
       context: .
       dockerfile: postgresql.Dockerfile
-    container_name: postgres
+    container_name: message-relay-postgres
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
@@ -28,7 +28,7 @@ services:
   kafka:
     image: apache/kafka:latest
     hostname: broker
-    container_name: broker
+    container_name: message-relay-kafka
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
@@ -58,7 +58,7 @@ services:
   relay:
     build:
       context: .
-    container_name: relay
+    container_name: message-relay
     depends_on:
       postgres:
         condition: service_healthy
