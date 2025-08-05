@@ -2,13 +2,18 @@
 
 # Message Relay Patterns
 
-After reading an article about [Transactional Outbox](https://microservices.io/patterns/data/transactional-outbox.html) pattern on microservices.io, I discorvered that there are no good educational examples of the [Transaction Log Tailing](https://microservices.io/patterns/data/transaction-log-tailing.html) and [Polling Publisher](https://microservices.io/patterns/data/polling-publisher.html) patterns on either the website or GitHub. So I decided to fill this gap and create a repository that would serve as a logical continuation of the article.
+This repository contains simple educational examples of the [Polling Publisher](https://microservices.io/patterns/data/polling-publisher.html) and [Transaction Log Tailing](https://microservices.io/patterns/data/transaction-log-tailing.html) patterns.
+
+## Motivation
+
+After reading an article about [Transactional Outbox](https://microservices.io/patterns/data/transactional-outbox.html) pattern on microservices.io, I discorvered that there are no good educational examples of the [Transaction Log Tailing](https://microservices.io/patterns/data/transaction-log-tailing.html) and [Polling Publisher](https://microservices.io/patterns/data/polling-publisher.html) patterns on either the website or GitHub.
+So this repository tries to fill that gap by providing simple examples of these patterns in Python using PostgreSQL as the database and Kafka as the message broker.
 
 ## Requirements
 
 - Read articles on microservices.io about [Transactional Outbox](https://microservices.io/patterns/data/transactional-outbox.html), [Transaction Log Tailing](https://microservices.io/patterns/data/transaction-log-tailing.html) and [Polling Publisher](https://microservices.io/patterns/data/polling-publisher.html).
-- Python 3.10 or higher
-- Docker / Docker Compose 
+- Minimal knowledge of Python to understand the examples.
+- Docker and Docker Compose installed on your machine to run the examples.
 
 ## Polling Publisher
 
@@ -18,7 +23,7 @@ After reading an article about [Transactional Outbox](https://microservices.io/p
 
 <img src="./diagrams/images/transaction_log_tailing.svg" alt="Transaction Log Tailing" width="800">
 
-## References
+## Links
 
 - Original articles on microservices.io:
   - https://microservices.io/patterns/data/transactional-outbox.html
