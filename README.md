@@ -28,35 +28,60 @@ cd message-relay-patterns
 
 <img src="./diagrams/images/polling_publisher.svg" alt="Polling Publisher" width="800">
 
-[Polling Publisher](https://microservices.io/patterns/data/polling-publisher.html) is simplest way to implement Message Relay and there is how it works:
-1. The Application(Order Service) writes messages to the database in an Outbox Table.
-2. Message Relay polls the Outbox Table for new messages and publishes them to the Message Broker(Kafka).
-3. Once the messages are published, they are deleted from the Outbox Table or soft-deleted by setting a flag.
+**Polling Publisher** is one of the simplest implementations of the Message Relay pattern based on periodic polling of the database:
 
-Simplicity of this pattern is its main advantage, but it has some drawbacks:
-- It can lead to increased load on the database due to frequent polling.
-- If you scale the Message Relay horizontally:
-  - You need to ensure that each instance polls a different subset of the Outbox Table to avoid duplicate message processing.
-    > In case of SQL databases, you can use SELECT ... FOR UPDATE SKIP LOCKED to achieve this. 
-  - You lost the guarantee that messages are processed in the order they were written to the Outbox Table, because each instance may process messages independently.
+1. The application (e.g., Order Service) writes messages to a special Outbox Table in the database within the same transaction as the business operation.
+2. Message Relay component periodically polls this Outbox Table using SQL queries.
+3. New messages found are published to the Message Broker (e.g., Kafka).
+4. After successful publishing, messages are either deleted from the Outbox Table or marked as processed.
+
+### Advantages
+
+- Simple to implement.
+- Works with any SQL database.
+- Does not require complex database setup.
+
+### Disadvantages
+
+- Periodic polling causes additional load on the database.
+- Message publishing may have delays depending on the polling interval.
+- When scaling out, care must be taken to avoid multiple Message Relay instances processing the same messages (using `SELECT _ FOR UPDATE` or similar mechanisms).
+- Message delivery ordering can be disrupted when processing in parallel.
+
+### How to run the example
+
+```bash
+docker compose -f 'polling_publisher/docker-compose-polling-publisher.yml' up -d --build
+```
 
 ## Transaction Log Tailing
 
 <img src="./diagrams/images/transaction_log_tailing.svg" alt="Transaction Log Tailing" width="800">
 
-[Transaction Log Tailing](https://microservices.io/patterns/data/transaction-log-tailing.html) is a more advanced pattern that uses the database's transaction log to capture changes and publish them to the Message Broker(Kafka):
-1. The Application(Order Service) writes messages to the database in an Outbox Table.
-2. The Message Relay reads the transaction log of the database to capture changes made to the Outbox Table.
-3. The Message Relay publishes the captured changes to the Message Broker(Kafka).
-  
-This pattern has several advantages:
-- It eliminates the need for polling, reducing the load on the database.
-- Lowers the latency of message delivery, as changes are captured in real-time.
-  
-This pattern also has some drawbacks:
-- It requires platform-specific configuration, such as enabling logical replication in PostgreSQL and using a plugin like wal2json.
-- It can be more complex to implement and maintain compared to the Polling Publisher pattern.
-- It can't be scaled horizontally well, because each instance of the Message Relay reads the same transaction log and processes messages in the order they were written to the Outbox Table and there is no mechanism in transaction log to skip already processed messages.
+**Transaction Log Tailing** is an advanced pattern that leverages reading the database transaction log:
+
+1. The application (e.g., Order Service) writes messages to the Outbox table inside the transaction.
+2. Message Relay component reads change records directly from the database transaction log (for example, logical replication with `wal2json` plugin in PostgreSQL) or uses a database-specific feature to stream changes.
+3. When new entries appear, Message Relay immediately publishes messages to the Message Broker (e.g., Kafka).
+
+### Advantages
+
+- Reduces load on the database compared to Polling Publisher.
+- Lower latency delivery due to near-instant reaction to changes.
+- Guarantees message order as per transaction commit order in the database.
+
+### Disadvantages
+
+- Requires specific database configuration (enabling logical replication, installing plugins).
+- Increases complexity of deployment and maintenance.
+- Scaling is complicated because multiple readers might see the same log entries without a simple way to skip already processed ones.
+- Depends on database system capabilities.
+
+### How to run the example
+
+```bash
+docker compose -f 'transaction_log_tailing/docker-compose-transaction-log-tailing.yml' up -d --build  
+```
 
 ## Links
 - Original articles on microservices.io:
