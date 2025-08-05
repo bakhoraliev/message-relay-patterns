@@ -48,7 +48,9 @@ cd message-relay-patterns
 - When scaling out, care must be taken to avoid multiple Message Relay instances processing the same messages (using `SELECT _ FOR UPDATE` or similar mechanisms).
 - Message delivery ordering can be disrupted when processing in parallel.
 
-### Running the example
+### Example
+
+Code for the Polling Publisher example is located in the [polling_publisher](./polling_publisher) directory. To run the example, use Docker Compose:
 
 ```bash
 docker compose -f 'polling_publisher/docker-compose-polling-publisher.yml' up -d --build
@@ -77,7 +79,9 @@ docker compose -f 'polling_publisher/docker-compose-polling-publisher.yml' up -d
 - Scaling is complicated because multiple readers might see the same log entries without a simple way to skip already processed ones.
 - Depends on database system capabilities.
 
-### Running the example
+### Example
+
+Code for the Transaction Log Tailing example is located in the [transaction_log_tailing](./transaction_log_tailing) directory. To run the example, use Docker Compose:
 
 ```bash
 docker compose -f 'transaction_log_tailing/docker-compose-transaction-log-tailing.yml' up -d --build  
