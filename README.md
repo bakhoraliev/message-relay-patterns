@@ -50,10 +50,10 @@ cd message-relay-patterns
 
 ### Example
 
-Code for the Polling Publisher example is located in the [polling_publisher](./polling_publisher) directory. To run the example, use Docker Compose:
+Code for the Polling Publisher example is located in the [polling_publisher](./polling_publisher) directory. To run the example, use Make:
 
 ```bash
-docker compose -f 'polling_publisher/docker-compose-polling-publisher.yml' up -d --build
+make up.polling
 ```
 
 ## Transaction Log Tailing
@@ -81,10 +81,10 @@ docker compose -f 'polling_publisher/docker-compose-polling-publisher.yml' up -d
 
 ### Example
 
-Code for the Transaction Log Tailing example is located in the [transaction_log_tailing](./transaction_log_tailing) directory. To run the example, use Docker Compose:
+Code for the Transaction Log Tailing example is located in the [transaction_log_tailing](./transaction_log_tailing) directory. To run the example, use Make:
 
 ```bash
-docker compose -f 'transaction_log_tailing/docker-compose-transaction-log-tailing.yml' up -d --build  
+make up.tailing
 ```
 
 ## Testing the examples
@@ -93,49 +93,24 @@ For testing the examples, we need two terminals: one for the watching messages i
 
 ### Watching messages in Kafka
 
-1. Open a terminal and enter Kafka container:
+1. Open a terminal and enter Kafka container and start consuming messages:
 
 ```bash
-docker exec -it message-relay-kafka bash
-```
-2. Use the following command to consume messages from the `test_topic` topic:
-
-```bash
-/opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic test_topic --from-beginning
+make consume KAFKA_TOPIC=tests
 ```
 
 ### Inserting test messages into PostgreSQL Outbox Table
 
-1. Open another terminal and enter PostgreSQL container:
+1. Open another terminal and seed the database with one message:
 
 ```bash
-docker exec -it message-relay-postgres bash
+make seed.one
 ```
 
-2. Connect to the PostgreSQL database:
+2. or multiple messages:
 
 ```bash
-psql -U postgres
-```
-
-3. Create a test messages in the Outbox table:
-
-```sql
-INSERT INTO general.outbox (topic, key, value)
-VALUES ('test_topic', 'key_1', 'value_1');
-```
-
-3. or to insert multiple messages, you can use the following SQL command:
-
-```sql
-BEGIN;
-INSERT INTO general.outbox (topic, key, value)
-SELECT
-    'test_topic',
-    'key_' || i,
-    'value_' || i
-FROM generate_series(0, 1000) AS i;
-COMMIT;
+make seed.multiple
 ```
 
 ## Links
