@@ -10,7 +10,7 @@ WORKDIR /app
 # Copy application code
 COPY . .
 
-# Copy requirements and install Python dependencies
+# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Run the Message Relay

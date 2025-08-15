@@ -60,7 +60,9 @@ services:
       retries: 5
 
   polling-publisher-relay:
-    build: ./polling_publisher
+    build:
+      context: ./polling_publisher
+      dockerfile: ../Dockerfile
     container_name: mr-polling-publisher-relay
     depends_on:
       postgres:
@@ -72,7 +74,9 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
 
   transaction-log-tailing-relay:
-    build: ./transaction_log_tailing
+    build:
+      context: ./transaction_log_tailing
+      dockerfile: ../Dockerfile
     container_name: mr-transaction-log-tailing-relay
     depends_on:
       postgres:
