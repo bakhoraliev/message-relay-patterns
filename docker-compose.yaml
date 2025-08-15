@@ -15,6 +15,8 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
     volumes:
+      - pgdata:/var/lib/postgresql/data
+
       # Why mount migrations here?
       # - Any *.sql in /docker-entrypoint-initdb.d is executed automatically
       #   ONLY on first database initialization (empty data dir/volume).
