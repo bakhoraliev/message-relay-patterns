@@ -1,29 +1,20 @@
 import logging
 import os
+import sys
 import time
-from typing import TypedDict
 
-import kafka
 import psycopg2
 from psycopg2.extensions import cursor as PsycopgCursor
 
+# Add parent directory to path to import shared module
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from shared import OutboxMessage, create_kafka_producer, publish_message
+
 logger = logging.getLogger(__name__)
-logging.basicConfig(
-    level=logging.DEBUG,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-
-
-class OutboxMessage(TypedDict):
-    id: int
-    topic: str
-    key: str | None
-    value: str | None
-    headers: list[tuple[str, str]] | None
-    partition: int | None
 
 
 def poll_messages(cursor: PsycopgCursor) -> list[OutboxMessage]:
+    """Poll for unprocessed messages from the outbox table."""
     logger.debug("Polling for unprocessed messages from outbox table.")
     cursor.execute(
         """
@@ -48,25 +39,9 @@ def poll_messages(cursor: PsycopgCursor) -> list[OutboxMessage]:
     ]
 
 
-def publish_message(producer: kafka.KafkaProducer, message: OutboxMessage):
-    logger.info(
-        "Publishing message id=%d to topic='%s', partition=%s.",
-        message["id"],
-        message["topic"],
-        message["partition"],
-    )
-    producer.send(
-        topic=message["topic"],
-        key=message["key"],
-        value=message["value"],
-        headers=message["headers"],
-        partition=message["partition"],
-    )
-    producer.flush()  # Ensure the message is sent immediately
-    logger.debug("Message id=%d published and flushed.", message["id"])
-
 
 def mark_as_processed(cursor: PsycopgCursor, messages: list[OutboxMessage]):
+    """Mark messages as processed in the outbox table."""
     if messages:
         ids = [msg["id"] for msg in messages]
         logger.info("Marking %d messages as processed: %s", len(ids), ids)
@@ -81,15 +56,12 @@ def mark_as_processed(cursor: PsycopgCursor, messages: list[OutboxMessage]):
         logger.debug("Messages marked as processed.")
 
 
-def polling_publisher(cursor: PsycopgCursor, producer: kafka.KafkaProducer):
+def polling_publisher(cursor: PsycopgCursor, producer):
     """
     Implements the Polling Publisher pattern.
 
     Polls the outbox table for unprocessed messages,
     publishes them to Kafka one by one, and marks them as processed.
-
-    If a message fails to publish, it is skipped,
-    and the next message is processed.
     """
     messages = poll_messages(cursor)
     processed_messages: list[OutboxMessage] = []
@@ -109,21 +81,12 @@ def polling_publisher(cursor: PsycopgCursor, producer: kafka.KafkaProducer):
 
 
 def main():
+    """Main function to run the polling publisher."""
     logger.info("Starting polling publisher.")
     db = psycopg2.connect(
-        dsn=os.getenv(
-            "DATABASE_DSN",
-            "postgres://postgres:password@localhost:5432",
-        ),
+        dsn=os.getenv("DATABASE_DSN", "postgres://postgres:password@localhost:5432"),
     )
-    producer = kafka.KafkaProducer(
-        bootstrap_servers=os.getenv(
-            "KAFKA_BOOTSTRAP_SERVERS",
-            "localhost:9092",
-        ),
-        value_serializer=lambda v: v.encode("utf-8") if isinstance(v, str) else v,
-        key_serializer=lambda v: v.encode("utf-8") if isinstance(v, str) else v,
-    )
+    producer = create_kafka_producer()
 
     try:
         while True:

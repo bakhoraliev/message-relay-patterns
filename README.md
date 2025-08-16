@@ -6,23 +6,24 @@ This repository contains simple educational examples of the [Polling Publisher](
 
 ## Motivation
 
-After reading an article about Transactional Outbox pattern on microservices.io, I discorvered that there are no good educational examples of the Transaction Log Tailing and Polling Publisher patterns on either the website or GitHub.
+After reading an article about Transactional Outbox pattern on microservices.io, I discovered that there are no good educational examples of the Transaction Log Tailing and Polling Publisher patterns on either the website or GitHub.
 So this repository tries to fill that gap by providing simple examples of these patterns in Python using PostgreSQL as the database and Kafka as the message broker.
 
 ## Requirements
 
-- Read articles on microservices.io about [Transactional Outbox](https://microservices.io/patterns/data/transactional-outbox.html), [Transaction Log Tailing](https://microservices.io/patterns/data/transaction-log-tailing.html) and [Polling Publisher](https://microservices.io/patterns/data/polling-publisher.html).
-- Minimal knowledge of Python to understand the examples.
-- Docker and Docker Compose installed on your machine to run the examples.
+- Basic understanding of Python and SQL
+- Docker and Docker Compose installed on your machine
+- Optional: Read about [Transactional Outbox](https://microservices.io/patterns/data/transactional-outbox.html), [Transaction Log Tailing](https://microservices.io/patterns/data/transaction-log-tailing.html) and [Polling Publisher](https://microservices.io/patterns/data/polling-publisher.html) patterns
 
-## Installing
+## Quick Start
 
-If you want to run the examples, clone the repository and open it in your terminal:
-
+1. Clone the repository:
 ```bash
 git clone https://github.com/bakhoraliev/message-relay-patterns
 cd message-relay-patterns
 ```
+
+2. Choose a pattern to try:
 
 ## Polling Publisher
 
@@ -50,10 +51,18 @@ cd message-relay-patterns
 
 ### Example
 
-Code for the Polling Publisher example is located in the [polling_publisher](./polling_publisher) directory. To run the example, use Make:
+Code is in the [polling_publisher](./polling_publisher) directory. To run:
 
 ```bash
+# Start the polling publisher pattern
 make up.polling
+
+# In another terminal, watch for messages
+make consume
+
+# In a third terminal, add test data
+make seed.one        # Add one message
+make seed.multiple   # Add 100 messages
 ```
 
 ## Transaction Log Tailing
@@ -81,37 +90,50 @@ make up.polling
 
 ### Example
 
-Code for the Transaction Log Tailing example is located in the [transaction_log_tailing](./transaction_log_tailing) directory. To run the example, use Make:
+Code is in the [transaction_log_tailing](./transaction_log_tailing) directory. To run:
 
 ```bash
+# Start the transaction log tailing pattern  
 make up.tailing
+
+# In another terminal, watch for messages
+make consume
+
+# In a third terminal, add test data
+make seed.one        # Add one message
+make seed.multiple   # Add 100 messages
 ```
 
-## Testing the examples
+**Note:** This pattern requires PostgreSQL with logical replication enabled. The setup uses Debezium's PostgreSQL image which comes pre-configured for this.
 
-For testing the examples, we need two terminals: one for the watching messages in Kafka and another for inserting test messages into the PostgreSQL Outbox Table. After running the examples, you can follow these steps:
+## Testing the Examples
 
-### Watching messages in Kafka
+Both patterns work similarly for testing:
 
-1. Open a terminal and enter Kafka container and start consuming messages:
+1. **Start a pattern** (choose one):
+   ```bash
+   make up.polling   # OR
+   make up.tailing
+   ```
 
-```bash
-make consume KAFKA_TOPIC=tests
-```
+2. **Watch messages** in a separate terminal:
+   ```bash
+   make consume
+   ```
 
-### Inserting test messages into PostgreSQL Outbox Table
+3. **Add test data** in another terminal:
+   ```bash
+   make seed.one        # Insert one test message
+   make seed.multiple   # Insert 100 test messages  
+   ```
 
-1. Open another terminal and seed the database with one message:
+4. **Clean up** when done:
+   ```bash
+   make down    # Stop containers
+   make reset   # Remove everything including data
+   ```
 
-```bash
-make seed.one
-```
-
-2. or multiple messages:
-
-```bash
-make seed.multiple
-```
+You should see messages appearing in the Kafka consumer as soon as you add data to the database!
 
 ## Links
 - Original articles on microservices.io:

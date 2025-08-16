@@ -1,54 +1,25 @@
 import json
 import logging
 import os
-from typing import TypedDict
+import sys
 
-import kafka
 import psycopg2
 from psycopg2.extras import (LogicalReplicationConnection, ReplicationCursor,
                              ReplicationMessage)
 
+# Add parent directory to path to import shared module
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from shared import OutboxMessage, create_kafka_producer, publish_message
+
 logger = logging.getLogger(__name__)
-logging.basicConfig(
-    level=logging.DEBUG,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
 
 
-class OutboxMessage(TypedDict):
-    id: int
-    topic: str
-    key: str | None
-    value: str | None
-    headers: list[tuple[str, str]] | None
-    partition: int | None
 
 
-def publish_message(producer: kafka.KafkaProducer, message: OutboxMessage):
-    logger.info(
-        "Publishing message id=%d to topic='%s', partition=%s.",
-        message["id"],
-        message["topic"],
-        message["partition"],
-    )
-    producer.send(
-        topic=message["topic"],
-        key=message["key"],
-        value=message["value"],
-        headers=message["headers"],
-        partition=message["partition"],
-    )
-    producer.flush()  # Ensure the message is sent immediately
-    logger.debug("Message id=%d published and flushed.", message["id"])
-
-
-def parse_replication_message(
-    replication_message: ReplicationMessage,
-) -> list[OutboxMessage]:
+def parse_replication_message(replication_message: ReplicationMessage) -> list[OutboxMessage]:
+    """Parse wal2json replication message and extract outbox messages."""
     logger.info("Parsing replication message: %s", replication_message.payload)
-    parsed_payload = json.loads(
-        replication_message.payload
-    )  # Assume wal2json plugin is used
+    parsed_payload = json.loads(replication_message.payload)  # Assume wal2json plugin is used
     outbox_messages = []
     for change in parsed_payload.get("change", []):
         if (
@@ -69,17 +40,13 @@ def parse_replication_message(
     return outbox_messages
 
 
-def transaction_log_tailing(
-    replication_slot: str, cursor: ReplicationCursor, producer: kafka.KafkaProducer
-):
+def transaction_log_tailing(replication_slot: str, cursor: ReplicationCursor, producer):
     """
     Implements the Transaction Log Tailing pattern.
 
     Starts a logical replication stream from the specified replication slot,
-    and consumes changes from the database. Consumer function processes each
-    replication message by parsing it, selecting only `insert` changes, and publishing
-    them to Kafka one by one. Acknowledgment is sent back to the database after each
-    message is processed.
+    and consumes changes from the database. Processes each replication message 
+    by parsing it and publishing outbox messages to Kafka.
     """
 
     def consumer(replication_message: ReplicationMessage):
@@ -98,23 +65,14 @@ def transaction_log_tailing(
 
 
 def main():
+    """Main function to run the transaction log tailing."""
     logger.info("Starting transaction log tailing.")
     replication_slot_name = os.getenv("REPLICATION_SLOT_NAME", "outbox")
     db = psycopg2.connect(
-        dsn=os.getenv(
-            "DATABASE_DSN",
-            "postgres://postgres:password@localhost:5432",
-        ),
+        dsn=os.getenv("DATABASE_DSN", "postgres://postgres:password@localhost:5432"),
         connection_factory=LogicalReplicationConnection,
     )
-    producer = kafka.KafkaProducer(
-        bootstrap_servers=os.getenv(
-            "KAFKA_BOOTSTRAP_SERVERS",
-            "localhost:9092",
-        ),
-        value_serializer=lambda v: v.encode("utf-8") if isinstance(v, str) else v,
-        key_serializer=lambda v: v.encode("utf-8") if isinstance(v, str) else v,
-    )
+    producer = create_kafka_producer()
 
     try:
         with db.cursor() as cursor:

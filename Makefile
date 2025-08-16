@@ -6,53 +6,54 @@ KAFKA_EXEC := $(COMPOSE) exec -T kafka
 
 help:
 	@echo ""
-	@echo "Targets:"
-	@echo "  ps               Show compose services status"
-	@echo "  up.polling       Start PostgreSQL + Kafka + Polling Publisher Message Relay"
-	@echo "  up.tailing       Start PostgreSQL + Kafka + Transaction Log Tailing Relay"
-	@echo "  stop             Stop containers (keep volumes)"
-	@echo "  down             Stop and remove containers (keep volumes)"
-	@echo "  reset            Remove containers and volumes (fresh DB)"
-	@echo "  seed.one         Run db/seeds/single.sql against Postgres"
-	@echo "  seed.multiple    Run db/seeds/multiple.sql against Postgres"
-	@echo "  consume          Kafka console consumer (from beginning)"
+	@echo "Message Relay Patterns - Make Commands:"
+	@echo ""
+	@echo "  Basic Operations:"
+	@echo "    ps               Show running services"
+	@echo "    stop             Stop all services (keep data)"
+	@echo "    down             Stop and remove containers (keep data)"
+	@echo "    reset            Remove everything including data"
+	@echo ""
+	@echo "  Start Patterns:"
+	@echo "    up.polling       Start Polling Publisher pattern"
+	@echo "    up.tailing       Start Transaction Log Tailing pattern"
+	@echo ""
+	@echo "  Testing:"
+	@echo "    seed.one         Insert one test message"
+	@echo "    seed.multiple    Insert 100 test messages"
+	@echo "    consume          Watch Kafka messages (KAFKA_TOPIC=tests)"
 	@echo ""
 
 ps:
 	$(COMPOSE) ps
 
-# Start Polling Publisher Message Relay
+# Start patterns
 up.polling:
 	$(COMPOSE) up -d --build polling-publisher-relay
 
-# Start Transaction Log Tailing Message Relay
 up.tailing:
 	$(COMPOSE) up -d --build transaction-log-tailing-relay
 
-# Stop containers but keep volumes
+# Container management
 stop:
 	$(COMPOSE) stop
 
-# Stop & remove containers (keep volumes)
 down:
 	$(COMPOSE) down
 
-# Nuke everything (containers + volumes). Use when you change migrations.
 reset:
 	$(COMPOSE) down -v
 
-# Seed database with one row
+# Database seeding
 seed.one:
 	$(PG_EXEC) psql -U postgres -v ON_ERROR_STOP=1 -f /seeds/single.sql
 
-# Seed database with multiple rows
 seed.multiple:
 	$(PG_EXEC) psql -U postgres -v ON_ERROR_STOP=1 -f /seeds/multiple.sql
 
-# Kafka console consumer (inside the kafka container).
-# Using 'kafka:9092' matches the advertised listener in compose.
+# Kafka consumer
 consume:
 	$(KAFKA_EXEC) /opt/bitnami/kafka/bin/kafka-console-consumer.sh \
 		--bootstrap-server kafka:9092 \
-		--topic $(KAFKA_TOPIC) \
+		--topic $(or $(KAFKA_TOPIC),tests) \
 		--from-beginning
