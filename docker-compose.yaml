@@ -2,11 +2,7 @@ version: "3.9"
 
 services:
   postgres:
-    # Why Debezium's Postgres image?
-    # - Ships with logical decoding plugins and sane defaults for CDC (e.g., wal_level=logical and `wal2json` output plugin).
-    # - Simplifies Transaction Log Tailing demos: no extra Postgres tuning required.
-    # - For production you can use the official postgres image, but you must configure
-    #   logical decoding and replication settings yourself.
+    # Uses Debezium's Postgres image with logical decoding plugins pre-installed
     image: debezium/postgres:14-alpine
     container_name: message-relay-postgres
     ports:
@@ -17,17 +13,10 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
-      # Why mount migrations here?
-      # - Any *.sql in /docker-entrypoint-initdb.d is executed automatically
-      #   ONLY on first database initialization (empty data dir/volume).
-      # - This guarantees a ready-to-use schema for both patterns with zero manual steps.
-      # - If you change migrations and want them to re-run, use `make reset` to recreate the volume.
+      # Migrations run automatically on first database initialization
       - ./db/migrations:/docker-entrypoint-initdb.d
 
-      # Why mount seeds separately?
-      # - Seeds are NOT executed automatically. We run them explicitly via `make seed`.
-      # - This keeps demos deterministic, lets practitioners re-seed anytime,
-      #   and avoids accidental side-effects on container restart.
+      # Seeds are run manually via `make seed.*` commands
       - ./db/seeds:/seeds
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
@@ -36,9 +25,7 @@ services:
       retries: 5
 
   kafka:
-    # Why Bitnami's Kafka image?
-    # - Easy single-node KRaft mode (no ZooKeeper) via environment variables.
-    # - Great for local education labs: one container, quick startup, minimal config.
+    # Single-node Kafka with KRaft mode (no ZooKeeper needed)
     image: bitnami/kafka:3.7
     container_name: message-relay-kafka
     ports:
@@ -88,7 +75,7 @@ services:
     environment:
       DATABASE_DSN: "postgres://postgres:password@postgres:5432"
       KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
-      REPLICATION_SLOT_NAME: "outbox"  # Name of the logical replication slot. It created in `002` migration.
+      REPLICATION_SLOT_NAME: "outbox"
 
 volumes:
   pgdata:
